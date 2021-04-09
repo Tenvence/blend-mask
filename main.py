@@ -1,16 +1,13 @@
 import torch
 
-from model.modules import StageBackbone, FeaturePyramidNet
+from model import BlendMask
 
 
 def main():
-    backbone = StageBackbone()
-    fpn = FeaturePyramidNet(in_channels_list=[512, 1024, 2048], out_channels=256)
+    model = BlendMask(num_classes=80, num_channels=256, num_basis=4, attention_size=56)
     inp = torch.zeros((2, 3, 512, 512))
-    stage_features_dict = backbone(inp)
-    fpn_out = fpn(stage_features_dict)
-    for key, val in fpn_out.items():
-        print(key, val.shape)
+    class_pred, centerness_pred, distances_pred, attentions_pred = model(inp)
+    print(class_pred.shape, centerness_pred.shape, distances_pred.shape, attentions_pred.shape)
 
 
 if __name__ == '__main__':
