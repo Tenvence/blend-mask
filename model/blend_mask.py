@@ -58,4 +58,15 @@ class BlendMask(nn.Module):
         #     bbox_pred = bbox_ops.convert_distance_to_bbox(level_points, distances_pred)
         #     blended_mask = self.blender(bases, bbox_pred, attentions_pred)
 
+        # if self.training:
+        #     return self._forward_train()
+        # else:
+        #     return self._forward_eval()
+
         return {'class': class_pred, 'centerness': centerness_pred, 'distance': distances_pred}
+
+    def _forward_train(self):
+        pass
+
+    def _forward_eval(self):
+        pass

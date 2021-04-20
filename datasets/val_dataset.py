@@ -12,6 +12,8 @@ class ValDataset(cv_datasets.CocoDetection):
         self.h, self.w = input_size
         self.img_transform = alb.Compose([alb.Resize(width=self.w, height=self.h)])
 
+        self.points, _ = tools.encode_points_and_regress_ranges(self.h, self.w)
+
     def __getitem__(self, index):
         img, _ = tools.load_img_target(self, index)
 
@@ -19,6 +21,4 @@ class ValDataset(cv_datasets.CocoDetection):
         img = tools.TENSOR_TRANSFORM(img)
         img_id = self.ids[index]
 
-        all_level_points, _ = tools.encode_all_level_points(self.h, self.w)
-
-        return img, all_level_points, img_id
+        return img, self.points, img_id

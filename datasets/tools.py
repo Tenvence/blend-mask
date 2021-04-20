@@ -62,19 +62,19 @@ def get_level_points(h, w, stride):
     return points
 
 
-def encode_all_level_points(h, w):
-    all_level_points, regress_ranges = [], []
+def encode_points_and_regress_ranges(h, w):
+    points, regress_ranges = [], []
     for stride, regress_range in zip(STRIDES, REGRESS_RANGES):
         level_points = get_level_points(h, w, stride)
-        all_level_points.append(level_points)
+        points.append(level_points)
 
         regress_range = torch.tensor(regress_range)[None].repeat(level_points.size(0), 1)
         regress_ranges.append(regress_range)
 
-    feature_map_locations = torch.cat(all_level_points, dim=0)  # [num_points, 2]
+    points = torch.cat(points, dim=0)  # [num_points, 2]
     regress_ranges = torch.cat(regress_ranges, dim=0)  # [num_points, 2]
 
-    return feature_map_locations, regress_ranges
+    return points, regress_ranges
 
 
 def encode_centerness_targets(distance_targets):

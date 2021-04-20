@@ -27,6 +27,8 @@ class TrainDataset(cv_datasets.CocoDetection):
             alb.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0., p=0.8),
         ], bbox_params=alb.BboxParams(format='coco', label_fields=['class_labels']))
 
+        self.points, self.regress_ranges = tools.encode_points_and_regress_ranges(self.h, self.w)
+
     def __getitem__(self, index):
         img, target = tools.load_img_target(self, index)
         img_info = self.coco.loadImgs(self.ids[index])[0]
@@ -40,15 +42,16 @@ class TrainDataset(cv_datasets.CocoDetection):
             class_labels.append(self.cat_to_label_map[obj['category_id']])
             bbox_labels.append(obj['bbox'])
 
-            rle = coco_mask.frPyObjects(obj['segmentation'], ih, iw)
-            if obj['iscrowd'] == 0:
-                rle = coco_mask.merge(rle)
-            mask = coco_mask.decode(rle)
-            mask_labels.append(mask)
+            # rle = coco_mask.frPyObjects(obj['segmentation'], ih, iw)
+            # if obj['iscrowd'] == 0:
+            #     rle = coco_mask.merge(rle)
+            # mask = coco_mask.decode(rle)
+            # mask_labels.append(mask)
 
-        transformed = self.img_transform(image=img, masks=mask_labels, bboxes=bbox_labels, class_labels=class_labels)
+        transformed = self.img_transform(image=img, bboxes=bbox_labels, class_labels=class_labels)
+        # transformed = self.img_transform(image=img, masks=mask_labels, bboxes=bbox_labels, class_labels=class_labels)
         img = tools.TENSOR_TRANSFORM(transformed['image'])
-        mask_labels = transformed['masks']
+        # mask_labels = transformed['masks']
         class_labels = transformed['class_labels']
         bbox_labels = transformed['bboxes']
 
@@ -67,10 +70,10 @@ class TrainDataset(cv_datasets.CocoDetection):
         bbox_labels = cv_ops.box_convert(torch.as_tensor(bbox_labels, dtype=torch.float32), in_fmt='xywh', out_fmt='xyxy')
         bbox_labels = cv_ops.clip_boxes_to_image(bbox_labels, (ih, iw))
 
-        all_level_points, class_targets, distance_targets = self._encode_targets(class_labels, bbox_labels, None)
+        class_targets, distance_targets = self._encode_targets(class_labels, bbox_labels, None)
         centerness_targets = tools.encode_centerness_targets(distance_targets)
 
-        return img, all_level_points, {'class': class_targets, 'distance': distance_targets, 'centerness': centerness_targets}
+        return img, self.points, {'class': class_targets, 'distance': distance_targets, 'centerness': centerness_targets}
 
     def _generate_instance_mask_labels(self, mask_labels, bbox_labels):
         instance_mask_labels = []
@@ -84,15 +87,16 @@ class TrainDataset(cv_datasets.CocoDetection):
         return instance_mask_labels
 
     def _encode_targets(self, cls_labels, bbox_labels, instance_mask_labels):
-        all_level_points, regress_ranges = tools.encode_all_level_points(self.h, self.w)
+        points = self.points.clone()
+        regress_ranges = self.regress_ranges.clone()
 
-        num_points = all_level_points.size(0)
+        num_points = points.size(0)
         num_gts = cls_labels.size(0)
 
         regress_ranges = regress_ranges[:, None, :].repeat(1, num_gts, 1)  # [num_points, num_gts, 2]
         bbox_areas = cv_ops.box_area(bbox_labels)[None].repeat(num_points, 1)  # [num_points, num_gts]
 
-        expanded_points = all_level_points[:, None, :].repeat(1, num_gts, 1)
+        expanded_points = points[:, None, :].repeat(1, num_gts, 1)
         expanded_bboxes = bbox_labels[None, :, :].repeat(num_points, 1, 1)
         distance_targets = bbox_ops.convert_bbox_to_distance(expanded_points, expanded_bboxes)  # [num_points, num_gts, 4]
         # instance_mask_labels = instance_mask_labels[None, :, :, :].repeat(num_points, 1, 1, 1)  # [num_points, num_gts, roi_size, roi_size]
@@ -115,4 +119,4 @@ class TrainDataset(cv_datasets.CocoDetection):
         distance_targets = distance_targets[range(num_points), min_area_idx, :]
         # instance_mask_labels = instance_mask_labels[range(num_points), min_area_idx, :, :]
 
-        return all_level_points, class_targets, distance_targets  # , instance_mask_labels
+        return class_targets, distance_targets  # , instance_mask_labels
