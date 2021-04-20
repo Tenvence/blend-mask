@@ -19,11 +19,11 @@ class ConvBlock(nn.Module):
 
 
 class AuxSemanticSegHead(nn.Module):
-    def __init__(self, in_channels, inner_channels, num_classes):
+    def __init__(self, fpn_channels, inner_channels, num_classes):
         super(AuxSemanticSegHead, self).__init__()
 
         self.block = nn.Sequential(
-            nn.Conv2d(in_channels, inner_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(fpn_channels, inner_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(inner_channels),
             nn.ReLU(),
             nn.Conv2d(inner_channels, inner_channels, kernel_size=3, stride=1, padding=1, bias=False),
@@ -38,16 +38,16 @@ class AuxSemanticSegHead(nn.Module):
 
 
 class BasisModule(nn.Module):
-    def __init__(self, in_channels_list, inner_dim, num_basis):
+    def __init__(self, in_channels_list, inner_channels, num_basis):
         super(BasisModule, self).__init__()
 
-        self.refine_block_list = nn.ModuleList([ConvBlock(in_channel, inner_dim) for in_channel in in_channels_list])
+        self.refine_block_list = nn.ModuleList([ConvBlock(in_channel, inner_channels) for in_channel in in_channels_list])
 
-        self.tower_conv_seq = nn.Sequential(*list([ConvBlock(inner_dim, inner_dim) for _ in range(3)]))
+        self.tower_conv_seq = nn.Sequential(*list([ConvBlock(inner_channels, inner_channels) for _ in range(3)]))
         self.tower_block = nn.Sequential(
             nn.UpsamplingBilinear2d(scale_factor=2),
-            ConvBlock(inner_dim, inner_dim),
-            nn.Conv2d(inner_dim, num_basis, kernel_size=1)
+            ConvBlock(inner_channels, inner_channels),
+            nn.Conv2d(inner_channels, num_basis, kernel_size=1)
         )
 
     def forward(self, in_features):
@@ -58,7 +58,7 @@ class BasisModule(nn.Module):
 
         entire_refined_feature = torch.stack(refined_features_list, dim=0).sum(dim=0)
 
-        basis = self.tower_conv_seq(entire_refined_feature)
-        basis = self.tower_block(basis)
+        bases = self.tower_conv_seq(entire_refined_feature)
+        bases = self.tower_block(bases)
 
-        return basis
+        return bases
